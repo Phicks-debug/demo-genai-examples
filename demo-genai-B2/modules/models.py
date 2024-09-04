@@ -219,13 +219,14 @@ class LLM():
         Assess message and decide to use internal memory or outer memory.
         """
         if (not messages):
-            if (len(self.memory.messages) > 0):
-                messages = self.memory.messages
-            else:
+            if (len(self.memory.messages) < 0):
                 raise AssertionError("Found None in model's memory. \
                     Missing messages from the user, please provide messages")
         
-        return messages
+        else:
+            self.add_to_memory("user", messages)
+        
+        return self.memory.messages
 
 
 class Claude(LLM):
