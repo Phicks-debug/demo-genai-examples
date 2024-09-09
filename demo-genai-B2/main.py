@@ -50,6 +50,232 @@ functionC = {
 }
 
 
+tool_get_stock_price = {
+    "name": "get_stock_price",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_stock_intraday = {
+    "name": "get_stock_intraday",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_company_info = {
+    "name": "get_company_info",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_company_events = {
+    "name": "get_company_events",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_company_shareholders = {
+    "name": "get_company_shareholders",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_company_inside_trades = {
+    "name": "get_company_inside_trades",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_subsidiaries = {
+    "name": "get_subsidiaries",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_dividends = {
+    "name": "get_dividends",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_company_balance_sheet = {
+    "name": "get_company_balance_sheet",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_company_income_statement = {
+    "name": "get_company_income_statement",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_cash_flow = {
+    "name": "get_cash_flow",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_company_financial_ratio = {
+    "name": "get_company_financial_ratio",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_vnexpress_news = {
+    "name": "get_vnexpress_news",
+    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a wikipedia article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
+tool_get_relevant_news = {
+    "name": "get_relevant_news",
+    "description": "Use this tool to search for general news. Use this tool when the users asks for general news, that is recently.\
+                    Can use this tool to search news about stock only IF ALL THE OTHER TOOLS DID NOT RETURN any\
+                    relavant answers or did not return any related articles",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search term to find a news about that article by title"
+            },
+        },
+        "required": ["search_term"]
+    }
+}
+
+
 system_prompt = """
     You will be asked a question by the user. 
     If answering the question requires data you were not trained on, you can use the get_article tool to get the contents of a recent wikipedia article about the topic. 
@@ -69,7 +295,7 @@ if __name__ == "__main__":
     claudePrompt = Prompts(claudeModel)
     
     # Add tool for the model to use
-    claudeModel.tool_add([functionA, functionB, functionC])
+    claudeModel.tool_add([functionA, functionB, functionC, tool_get_relevant_news])
     
     # Main loop for application
     while True:

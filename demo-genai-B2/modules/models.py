@@ -1,8 +1,6 @@
-import json, utils
-
-from modules import tools
+import json, tools
+from modules import utils
 from modules.messages import ChatMessage, Image
-
 import xml.etree.ElementTree as ET
 
 
@@ -328,7 +326,7 @@ class Claude(LLM):
         result = tool_function(**tool["params"])
 
         # Handle and proccess result based on its type
-        if result["type"] == "knowledge_base":
+        if result["type"] == "documents":
             x = self._build_context_kb_prompt(result["text"])
             print("Analyzing data source from knowledge base...")
             return x
