@@ -1,4 +1,7 @@
 import json
+import re
+
+from termcolor import cprint
     
     
 def combine_string(list_of_string: list) -> str:
@@ -61,6 +64,9 @@ def sanitize_input(text: str) -> str:
     return text
         
         
+def clean_tag(string: str) -> str:
+    """
+    Function to remove text between specified tag from a string
+    """
+    return re.sub(r"<(instructions|examples|context|documents)>.*?</\1>", "", string)
 
-
-    

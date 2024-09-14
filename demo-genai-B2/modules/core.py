@@ -136,13 +136,26 @@ class Tools:
     def tool(action: str, data_type: str):
         def tool_decorator(func):
             def wrapper(*args, **kwargs):
-                result = func(*args, **kwargs)
+                try:
+                    result = func(*args, **kwargs)
                 
-                return {
-                    "text": result,
-                    "type": data_type,
-                    "action": action
-                }
+                    return {
+                        "text": result,
+                        "type": data_type,
+                        "action": action
+                    }
+                except TypeError as e:
+                    return {
+                        "error": f"error using tool: {e}",
+                        "type": "parameterError",
+                        "action": action
+                    }
+                except KeyError as e:
+                    return {
+                        "error": f"error using tool: {e}",
+                        "type": "parameterError",
+                        "action": action
+                    }
                 
             return wrapper
         return tool_decorator

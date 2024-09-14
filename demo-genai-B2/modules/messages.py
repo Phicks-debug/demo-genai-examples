@@ -59,37 +59,26 @@ class ChatMessage:
         return self.messages
     
     
-    def append_tool_result(self, tool_use_id: str, text: str, images: list[Image]|None=None) -> list:
-        """
-        Adds a tool resutl to the chat, including optional images.
+    def append_tool_result(self, result_list: list) -> list:
         
-        This method constructs a message dictionary that includes a tool use id, tool result, and optional images.
-        The message is then appended to the `messages` list.
+        container_list = []
         
-        @param tool_use_id: An id of the tool that the model request to use.
-        @param text: A string containing the text of the message to be added.
-        @param images: An optional list of Image objects to be included with the message. If provided,
-                    each image should be accompanied by a descriptive text label, such as "Image 1:", 
-                    "Image 2:", etc. If no images are provided, the message will contain only text.
-        
-        @return: A list of messages with the newly added message included.
-        """
-        
-        content = []
+        for result in result_list:
 
-        content = self._add_text(content, text)
-        content = self._add_image(content, images)
+            content = []
+
+            content = self._add_text(content, result["content"])
+            
+            container_list.append({
+                "type": "tool_result",
+                "tool_use_id": result["tool_id"],
+                "content": content
+            })
         
         # Append the constructed message to the messages list
         self.messages.append({
             "role": "user",
-            "content": [
-                {
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": content
-                }
-            ]
+            "content": container_list
         })
         
         return self.messages

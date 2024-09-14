@@ -11,6 +11,21 @@ import pandas as pd
 from vnstock3 import Vnstock
 from datetime import date
 
+import urllib.parse
+
+
+@Tools.tool("retrieve", "data")
+def call_wolframalpha(query: str) -> str:
+    """
+    Function to call wolframalpha API
+    """
+    
+    encoded_query = urllib.parse.quote(query)
+    
+    url = f"https://www.wolframalpha.com/api/v1/llm-api?input={encoded_query}s&appid=AQHXEG-WE9WU4T6K6"
+    
+    return requests.get(url).text
+
 
 @Tools.tool("retrieve","data")
 def get_time_date() -> str:
@@ -63,14 +78,18 @@ def get_article(search_term):
     """
     
     results = wikipedia.search(search_term)
+    
+    if not results:
+        return "Can not find any relevant information about that"
     first_result = results[0]
+    
     page = wikipedia.page(first_result, auto_suggest=False)
     
     return page.content
 
 
 @Tools.tool("retrieve", "data")
-def get_stock_price(ticker: str, start:str):
+def get_stock_price(ticker: str, start:str, end = None):
     """
     Use this tool to retrieve the stock price data for a specific company. 
     This tool will get the price as a pandas dataframe, with open, high, low, close, volume and ticker columns.
@@ -84,14 +103,20 @@ def get_stock_price(ticker: str, start:str):
     @return:
     """
     
-    # Initiate the stock object
-    stock = Vnstock().stock(symbol = ticker, source = "TCBS")
-    today = date.today().strftime("%Y-%m-%d")
+    try:
+        if not end:
+            end = date.today().strftime("%Y-%m-%d")
+        
+        # Initiate the stock object
+        stock = Vnstock().stock(symbol = ticker, source = "TCBS")
+        
+        # Query the latest stock until today
+        price_df = stock.quote.history(start = start, end = end)
+        
+        return str(price_df.to_dict())
     
-    # Query the latest stock until today
-    price_df = stock.quote.history(start = start, end = today)
-    
-    return price_df.to_dict()
+    except:
+        return "No invalid ticker, there is no data about that ticker"
     
     
 @Tools.tool("retrieve", "data")
@@ -108,7 +133,7 @@ def get_stock_intraday(ticker: str,):
     df = stock.quote.intraday(symbol = ticker, show_log = False)
     df["ticker"] = ticker
     
-    return df.to_dict()
+    return str(df.to_dict())
     
 
 @Tools.tool("retrieve", "data")
@@ -119,7 +144,6 @@ def get_company_info(ticker: str):
     and strategy will give you the company promise, business risk, key developments and business strategies of the company
     
     @param ticker:
-    @param data:
     
     @return:
     """
@@ -146,7 +170,7 @@ def get_company_info(ticker: str):
         "business_strategies"
     ]]
     
-    return overview.to_dict, strategy.to_dict
+    return "; ".join([str(overview.to_dict()), str(strategy.to_dict())])
     
 
 @Tools.tool("retrieve", "data")
@@ -176,7 +200,7 @@ def get_company_events(ticker: str):
         "event_desc"
     ]]
     
-    return events.to_dict()
+    return str(events.to_dict())
     
 
 @Tools.tool("retrieve", "data")
@@ -195,7 +219,7 @@ def get_company_shareholders(ticker: str):
     # Get the shareholder list
     shareholders = company.shareholders()
     
-    return shareholders.to_dict()
+    return str(shareholders.to_dict())
 
 
 @Tools.tool("retrieve", "data")
@@ -216,7 +240,7 @@ def get_company_inside_trades(ticker: str):
     # Get dataframe of inside trades
     inside_trades = company.insider_deals()
     
-    return inside_trades.to_dict()
+    return str(inside_trades.to_dict())
 
 
 @Tools.tool("retrieve", "data")
@@ -233,7 +257,7 @@ def get_subsidiaries(ticker: str):
     # Get the subsidiaries list
     subsidiares = company.subsidiaries()
     
-    return subsidiares.to_dict()
+    return str(subsidiares.to_dict())
 
 
 @Tools.tool("retrieve", "data")
@@ -247,12 +271,12 @@ def get_dividends(ticker: str):
     """
     
     # Initiate object
-    company = Vnstock().stock(symbol = ticker, source = "TCBS")
+    company = Vnstock().stock(symbol = ticker, source = "TCBS").company
     
     # Get the dividends
     dividends = company.dividends()
     
-    return dividends.to_dict()
+    return str(dividends.to_dict())
 
 
 ## Get company financial information
@@ -277,7 +301,7 @@ def get_company_balance_sheet(ticker: str, period: str = "year", period_back: in
     # Get only latest 4 quarter
     balance_sheet = balance_sheet.iloc[:period_back]
     
-    return balance_sheet.to_dict()
+    return str(balance_sheet.to_dict())
 
 
 @Tools.tool("retrieve", "data")
@@ -303,7 +327,7 @@ def get_company_income_statement(ticker: str, period: str = "year", period_back:
     # Obtain latest 4 years or quarters
     income_statement = income_statement.iloc[:period_back]
     
-    return income_statement.to_dict()
+    return str(income_statement.to_dict())
 
 
 @Tools.tool("retrieve", "data")
@@ -330,7 +354,7 @@ def get_cash_flow(ticker: str, period: str = "year", period_back: int = 4):
     # obtain the time
     cash_flow = cash_flow.iloc[:period_back]
     
-    return cash_flow.to_dict()
+    return str(cash_flow.to_dict())
 
 
 @Tools.tool("retrieve", "data")
@@ -359,25 +383,28 @@ def get_company_financial_ratio(ticker:str, period: str = "year", period_back: i
     # Get the latest data
     financial_ratio = financial_ratio.iloc[:period_back]
     
-    return financial_ratio.to_dict()
+    return str(financial_ratio)
     
 
 @Tools.tool("retrieve", "data")
-def get_vnexpress_news(url, limit=10):
+def get_vnexpress_news():
     """
     Use this tool only to search the news for stocks. This tool will fetch you the latest 10 news about stock market in Vietnam
-    
-    @params url: 
     """
+    
     url = "https://vnexpress.net/kinh-doanh/chung-khoan"
     response = requests.get(url)
     response.raise_for_status()  # Ensure we notice bad responses
     soup = BeautifulSoup(response.text, 'html.parser')
+    limit = 10
 
     news_items = []
+    result = ""
 
     # Select all article elements
     articles = soup.find_all('article', class_='item-news')
+    
+    i = 0
 
     for article in articles[:limit]:  # Limit to the first `limit` articles
         # Get the title and URL
@@ -389,14 +416,22 @@ def get_vnexpress_news(url, limit=10):
         description_tag = article.find('p', class_='description').find('a')
         description = description_tag.get_text(strip=True)
         
+        article = ', '.join([
+            f"Article number: {i}",
+            f"article title: {title}",
+            f"article url: {article_url} ",
+            f"description: {description}",
+        ])
+        
         # Store the extracted information
-        news_items.append({
-            'title': title,
-            'url': article_url,
-            'description': description
-        })
+        news_items.append(article)
+        
+        i += 1
 
-    return news_items
+    for x in news_items:
+        result += ". " + x
+
+    return result
 
 
 @Tools.tool("retrieve", "data")

@@ -2,6 +2,7 @@ import json, tools
 from modules import utils
 from modules.messages import ChatMessage, Image
 import xml.etree.ElementTree as ET
+from termcolor import colored, cprint
 
 
 class LLM():
@@ -15,6 +16,7 @@ class LLM():
         self.memory = ChatMessage(max_chat_message=max_chat_memmory+4)  # Add buffer, DO NOT REMOVE
         self.runtime = session.client("bedrock-runtime", region_name=region_name)
         self.tools = []
+        self._is_streaming = False
     
     
     def assess_memory(func):
@@ -23,8 +25,13 @@ class LLM():
         If memory exceeds the set limit, purifies the recent question and removes old messages.
         """
         def wrapper(self, *args, **kwargs):
-            # if len(self.memory.messages) >= 2:
-            #     self.memory._purify_recent_question()
+            if len(self.memory.messages) > 2:
+                try:
+                    clean_text = self.memory.messages[-3]["content"][0]["text"]
+                    clean_text = utils.clean_tag(clean_text)
+                    self.memory.messages[-3]["content"][0]["text"] = clean_text
+                except:
+                    pass
 
             func(self, *args, **kwargs)
 
@@ -62,22 +69,11 @@ class LLM():
             
     
     @assess_memory
-    def add_tool_result_to_memory(self, tool_use_id, content) -> None:
+    def add_tool_result_to_memory(self, results) -> None:
         """
-        Adds tool result to the memory. The `assess_memory` decorator is 
-        applied to this method to manage memory, ensuring that older messages are pruned if the 
-        memory exceeds its predefined limit.
-
-        @param tool_use_id: An id of the tool that the model request to use.
-        @param content: The content of the result to be added to memory.
-        @param images: Optional list of images associated with the message. 
-                    Defaults to None.
-
-        @return: None
         """
-        
-        # Need to fix so that I could add picture to it
-        self.memory.append_tool_result(tool_use_id, content)
+
+        self.memory.append_tool_result(results)
             
     
     @assess_memory
@@ -99,7 +95,39 @@ class LLM():
         self.memory.append_tool(tool_content)
     
     
-    def stream_response(self, invoke_result, debug: bool=False) -> any:
+    def response(self, invoke_result, debug: bool=False) -> any:
+        """
+        Process the model's HTTP response, either streaming or non-streaming, based on the streamming flag from invoke method.
+
+        This method handles the distinction between a streaming response and a non-streaming response 
+        from a model invocation. If the response is streaming, it will call the `_stream_response` method 
+        to process and display output in real-time. Otherwise, it calls `_non_stream_response` to handle 
+        and accumulate the full response content at once.
+
+        @param invoke_result: The HTTP response object from the model's invocation. 
+        It contains either streamed or non-streamed JSON data, depending on the response type.
+        @param debug: A boolean flag that, when set to `True`, enables additional output for debugging, 
+                    such as the stop reason, stop sequence, and token usage. Defaults to `False`.
+        
+        @return: The final processed response, which could include text and tools used during the model 
+                invocation, depending on the response type.
+        """
+        if self._is_streaming:
+            return self._stream_response(invoke_result, debug)
+        else:
+            return self._non_stream_response(invoke_result, debug)  
+                
+    
+    def tool_add(self, tool_list: list):
+        """
+        Add tool for the model to extend its capability
+        
+        @param tool_list: list of usable tools for the model
+        """
+        self.tools.extend(tool_list)
+    
+    
+    def _stream_response(self, invoke_result, debug: bool=False) -> any:
         """
         Stream and print model output from an HTTP response in real-time. 
         Optionally print debugging information.
@@ -117,6 +145,9 @@ class LLM():
         """
         
         full_response = ""
+        tool_input = ""
+        tools = []
+        body = []
 
         for event in invoke_result.get("body"):
             chunk = json.loads(event["chunk"]["bytes"])
@@ -124,39 +155,90 @@ class LLM():
             # For debugging only
             if chunk['type'] == 'message_delta':
                 
+                stop_reason = chunk['delta']['stop_reason']
+                stop_sequence = chunk['delta']['stop_sequence']
+                output_token = chunk['usage']['output_tokens']
+                
                 if not debug:
                     print("\n")     # Add spacing for readability
                     break
                 
-                print(f"\nStop reason: {chunk['delta']['stop_reason']}")
-                print(f"Stop sequence: {chunk['delta']['stop_sequence']}")
-                print(f"Output tokens: {chunk['usage']['output_tokens']}")
+                print(f"\nStop reason: {stop_reason}")
+                print(f"Stop sequence: {stop_sequence}")
+                print(f"Output tokens: {output_token}\n")
+            
+            # Print more debug content
+            if chunk['type'] == 'message_stop' and debug:
+                metric = chunk["amazon-bedrock-invocationMetrics"]
+                
+                input_token = metric["inputTokenCount"]
+                latency = metric["invocationLatency"]
+                first_byte_latency = metric["firstByteLatency"]
+                
+                print(f"Input token: {metric[input_token]}")
+                print(f"Latency invoke: {latency}")
+                print(f"First byte latency: {first_byte_latency}")
 
+            # Print out the response and tool params
             if chunk['type'] == 'content_block_delta':
                 if chunk['delta']['type'] == 'text_delta':
                     text_chunk = chunk['delta']['text']
-                    print(text_chunk, end="")
+                    print(colored(text_chunk, "green"), end="", flush=True)
                     
                     # Add stream chunk to the final response.
                     full_response += text_chunk
+                
+                elif chunk['delta']['type'] == 'input_json_delta':
+                    text_chunk = chunk['delta']['partial_json']
+                    tool_input += text_chunk
+                    
+            # Record the tool need to use
+            if chunk['type'] == 'content_block_start' and chunk['index'] != 0:
+                tool_index = chunk['index'] - 1
+                tool_id = chunk['content_block']['id']
+                tool_name = chunk['content_block']['name']
+            
+            # End of streaming a content block
+            if chunk['type'] == 'content_block_stop':
+                
+                # Add response to the body
+                if chunk['index'] == 0:
+                    body.append(
+                        {
+                            "type": "text",
+                            "text": full_response
+                        }
+                    )
+                
+                # Add the tool to the list of tool  
+                else:
+                    
+                    # Check for valid params input
+                    try:
+                        input = json.loads(tool_input)
+                    except:
+                        input = {}
+                    
+                    tool = {
+                            "type": "tool_use",
+                            "id": tool_id,
+                            "name" : tool_name,
+                            "input": input
+                        }
+                    tools.append(tool)
+                    body.append(tool)
+                    tool_input = ""
+
         
         return {
             "response": full_response,
-            "tool": tool,
-            "stop_reason": body['stop_reason']
+            "tool": tools,
+            "stop_reason": stop_reason,
+            "body": body
         }
-            
-    
-    def tool_add(self, tool_list: list):
-        """
-        Add tool for the model to extend its capability
-        
-        @param tool_list: list of usable tools for the model
-        """
-        self.tools.extend(tool_list)
-        
 
-    def response(self, invoke_result, debug: bool=False) -> any:
+
+    def _non_stream_response(self, invoke_result, debug: bool=False) -> any:
         """
         Process and extract the content from a JSON response, optionally printing debugging information.
 
@@ -181,23 +263,23 @@ class LLM():
         """
         
         full_response = ""
-        tool = None
+        tools = []
         
         body = json.loads(invoke_result.get("body").read())
         for content_block in body["content"]:
             
             # Check if it is text
             if content_block["type"] == "text":
-                print(content_block["text"])
+                cprint(content_block["text"], "green")
                 full_response += content_block["text"]
                 
             # Check if it request tool use
             if content_block["type"] == "tool_use":
-                tool = {
+                tools.append({
                     "id": content_block["id"],
                     "name" : content_block["name"],
-                    "params": content_block["input"]
-                }  
+                    "input": content_block["input"]
+                })
 
         if debug:
             print(f"\nStop reason: {body['stop_reason']}")
@@ -206,12 +288,12 @@ class LLM():
         
         return {
             "response": full_response,
-            "tool": tool,
+            "tool": tools,
             "stop_reason": body['stop_reason'],
             "body": body['content']
         }
             
-            
+         
     def _assess_messages(self, messages: list|None):
         """
         Assess message and decide to use internal memory or outer memory.
@@ -260,8 +342,23 @@ class Claude(LLM):
             raise ValueError(f"modelId is not valid, model name {name} is not found")
     
     
+    def retry_invoke(func):
+        def wrapper(self, *args, **kwargs):
+            
+            retries = 0
+            
+            while retries < 3:
+                result = func(self, *args, **kwargs)
+                
+
+                
+            raise Exception("Model is unable to produce answer!")
+                
+        return wrapper
+    
+
     def invoke(self, system_prompt: str="", messages: list|None = None, 
-               temp: float=0.15, top_p: float=0.8, top_k: int=50, streaming: bool|None=True) -> json: 
+               temp: float=0.15, top_p: float=0.8, top_k: int=50, streaming: bool=False) -> json: 
         """
         Invokes a model with the provided system_prompts and messages, sending a request to the Amazon Bedrock service return the response
         from the model.
@@ -274,7 +371,7 @@ class Claude(LLM):
         @param temp: A float specifying the temperature for sampling, which controls the randomness of the output (default is 0.2).
         @param top_p: A float specifying the cumulative probability for nucleus sampling, determining the diversity of the output (default is 0.8).
         @param top_k: An integer specifying the number of top tokens to consider for sampling, influencing the output generation (default is 50).
-        @param streaming: A boolean indicating whether to stream the response or wait for the entire response (default is True).
+        @param streaming: A boolean indicating whether to stream the response or wait for the entire response (default is False).
 
         @return: The response from the Amazon Bedrock service in JSON format, which may vary depending on whether streaming is enabled or not.
         """
@@ -292,53 +389,53 @@ class Claude(LLM):
             "body": payload
         }
         
-        if streaming == True:
+        self._is_streaming = streaming
+        
+        if self._is_streaming:
             response = self.runtime.invoke_model_with_response_stream(**kwargs)
+            
         else:
             response = self.runtime.invoke_model(**kwargs)
-            
         return response       
     
     
-    def tool_use(self, tool: dict):
+    def tool_use(self, tool_list: list):
         """
-        Executes a tool function based on the provided tool name and parameters.
-
-        This method dynamically invokes a function from the `tools` module using the name specified in 
-        the `tool` dictionary. The function is called with the parameters provided in the `tool` dictionary.
-        Depending on the type of result returned, the method processes the output accordingly:
-        
-        - If the result is of type "knowledge_base", it processes the text using a context-building method.
-        - If the result is of type "data", it simply returns the text data.
-        - If the result is of type "image", it prepares for image-related logic (currently a placeholder).
-        
-        @param tool: A dictionary containing:
-        - "name": The name of the tool function to invoke.
-        - "params": A dictionary of parameters to pass to the tool function.
-        
-        @return: The processed result from the invoked tool, which may be a context-built prompt or text data.
         """
         
-        print("Analyzing...")
+        results = []
+        
+        for tool in tool_list:
+            cprint("Analyzing...", "cyan", attrs=["blink"])
 
-        # Dynamically invoke the tool function using the tool's name and parameters
-        tool_function = getattr(tools, tool["name"])
-        result = tool_function(**tool["params"])
+            # Dynamically invoke the tool function using the tool's name and parameters
+            tool_function = getattr(tools, tool["name"])
+            result = tool_function(**tool["input"])
 
-        # Handle and proccess result based on its type
-        if result["type"] == "documents":
-            x = self._build_context_kb_prompt(result["text"])
-            print("Analyzing data source from knowledge base...")
-            return x
+            # Handle and proccess result based on its type
+            if result["type"] == "documents":
+                x = self._build_context_kb_prompt(result["text"])
+                cprint("Analyzing data source from knowledge base...", "cyan")
 
-        elif result["type"] == "data":
-            print("Getting data from sources...")
-            return result["text"]
+            elif result["type"] == "data":
+                cprint("Getting data from sources...", "cyan")
+                x = result["text"]
 
-        elif result["type"] == "image":
-            # Placeholder for future logic to handle image results
-            print("Image processing not yet implemented.")
-            pass
+            elif result["type"] == "image":
+                # Placeholder for future logic to handle image results
+                print("Image processing not yet implemented.")
+                pass
+        
+            elif result["type"] == "parameterError":
+                cprint("Error using this tool, trying agian with different tools", "red")
+                x = result["error"]
+                
+            results.append({
+                "tool_id": tool['id'],
+                "content": x
+            })
+
+        return results
     
         
     def _build_context_kb_prompt(self, 
@@ -421,14 +518,21 @@ class Claude(LLM):
             # Generate a default template prompt if not provided
             # Can use this for template for your own Chain of Thought prompt
             prompt = "\
-                Analyze which actions need to do after reading from the <request> tag. \
-                Think step-by-step what to do in <thinking> tag. \
-                Finally give an answer or solve the request in <answer> tag. \
+                Start the process by \
+                analyzing which actions need to do first reading from the <request> tag. \
+                Think what to do in <thinking> tag. \
+                If need to use tool, list which tool and its parameters are required in order \
+                List all the tools that need to use \
+                Once tool results are received, continue anylyzing and thinking processing, \
+                Analysing with the user request \
+                Process the next step for the task in the <thinking> tag. \
+                Loop back to the first process until satisfied with the answer. \
+                Provide a final answer in the <answer> tag.\
                 Follow the answer format in <exmaple> tag if included \
                 else feel free to use your format. \
             "
         
-        cot_prompt = ET.Element("instruction")
+        cot_prompt = ET.Element("instructions")
         cot_prompt.text = prompt
         return ET.tostring(cot_prompt, encoding="unicode", method="xml")
 
@@ -448,7 +552,7 @@ class Claude(LLM):
         if prompt == "":
             return ""
         
-        example_prompt = ET.Element("example")
+        example_prompt = ET.Element("examples")
         example_prompt.text = prompt
         return ET.tostring(example_prompt, encoding="unicode", method="xml")
     
@@ -485,6 +589,7 @@ class Claude(LLM):
         @return: A string containing the XML representation of the user prompt.
         """
         
-        user_prompt = ET.Element("request")
+        user_prompt = ET.Element("requests")
         user_prompt.text = prompt
         return ET.tostring(user_prompt, encoding="unicode", method="xml")
+    
