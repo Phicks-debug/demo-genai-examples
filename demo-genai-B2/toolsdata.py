@@ -34,7 +34,8 @@ functionB = {
 
 functionC = {
     "name": "get_article",
-    "description": "A tool to retrieve an up to date Wikipedia article.",
+    "description": "A tool to retrieve an up to date Wikipedia article. \
+                    Use side by side with get_information tool for comparing and evaluation informations",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -82,6 +83,25 @@ functionD = {
 }
 
 
+functionE = {
+    "name": "get_information",
+    "description": "Use this tool to search for anything on the internet. \
+                    Use side by side with wiki tool for comparing and evaluation informations. \
+                    Can Use this tool when the users asks for general news, that is recently.\
+                    Must use this tool to get information of everything on the internet.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "search_term": {
+                "type": "string",
+                "description": "The search query to find the information about it",
+            },
+        },
+        "required": ["search_term"],
+    },
+}
+
+
 tool_get_vnexpress_news = {
     "name": "get_vnexpress_news",
     "description": "Use this tool only to get the latest news for stocks. \
@@ -89,24 +109,6 @@ tool_get_vnexpress_news = {
                     Do not use this tool for searching any news. This tool only for retrieve stock new.",
     "input_schema": {
         "type": "object",
-    },
-}
-
-
-tool_get_relevant_news = {
-    "name": "get_relevant_news",
-    "description": "Use this tool to search for general news. Use this tool when the users asks for general news, that is recently.\
-                    Can use this tool to search news about stock only IF ALL THE OTHER TOOLS DID NOT RETURN any\
-                    relavant answers or did not return any related articles",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "search_term": {
-                "type": "string",
-                "description": "The search term to find a news about that article by title",
-            },
-        },
-        "required": ["search_term"],
     },
 }
 
@@ -387,7 +389,7 @@ def return_tool():
         functionB,
         functionC,
         functionD,
-        tool_get_relevant_news,
+        functionE,
         tool_get_vnexpress_news,
         tool_get_stock_price,
         tool_get_stock_intraday,

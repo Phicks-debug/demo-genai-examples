@@ -89,6 +89,18 @@ def get_article(search_term):
 
 
 @Tools.tool("retrieve", "data")
+def get_information(search_term: str) -> str:
+    """
+    Use this tool to search for. Use this tool when the users asks for general news.
+    
+    @param search_term: Query search tool
+    """
+    search = DuckDuckGoSearchRun(max_results = 5)
+    result = search.run(search_term)
+    return result
+
+
+@Tools.tool("retrieve", "data")
 def get_stock_price(ticker: str, start:str, end = None):
     """
     Use this tool to retrieve the stock price data for a specific company. 
@@ -431,16 +443,4 @@ def get_vnexpress_news():
     for x in news_items:
         result += ". " + x
 
-    return result
-
-
-@Tools.tool("retrieve", "data")
-def get_relevant_news(search_term: str) -> str:
-    """
-    Use this tool to search for other news. Use this tool when the users asks for general news.
-    
-    @param search_term: Query search tool
-    """
-    search = DuckDuckGoSearchRun(max_results = 5)
-    result = search.run(search_term)
     return result
