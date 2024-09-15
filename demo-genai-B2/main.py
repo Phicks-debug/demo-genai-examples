@@ -8,7 +8,6 @@ from termcolor import cprint
 
 system_prompt = """
     If answering the question requires data you were not trained on, you can use the get_article tool to get the contents of a recent wikipedia article about the topic.
-    If answering the question related to stocks, you muse use all posible stock tools to get the content, background of that stocks and other related stocks 
     You can search for background information by using get_article, get_vnexpress_news, get_relevant_news tool for background and related content for more indetail information.
     If you can answer the question without needing to get more information, please do so. 
     Only call the tool when needed. 
