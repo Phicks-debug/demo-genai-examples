@@ -525,7 +525,7 @@ class Claude(LLM):
                 List all the tools that need to use \
                 Once tool results are received, continue anylyzing and thinking processing, \
                 Analysing with the user request \
-                Process the next step for the task in the <thinking> tag. \
+                Process the next step for the task in the <middle_thinking> tag. \
                 Loop back to the first process until satisfied with the answer. \
                 Provide a final answer in the <answer> tag.\
                 Follow the answer format in <exmaple> tag if included \
