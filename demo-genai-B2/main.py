@@ -23,7 +23,7 @@ if __name__ == "__main__":
     session = boto3.Session()
     
     # Create runtime service
-    claudeModel = Claude("3.5-sonnet", "us-east-1", 10, session)
+    claudeModel = Claude("3-haiku", "us-east-1", 10, session)
     claudePrompt = Prompts(claudeModel)
     
     # Add tool for the model to use
