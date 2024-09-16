@@ -1,17 +1,3 @@
-
-functionA = {
-    "name": "get_time_date",
-    "description": "Always use at the start of any other function. \
-        Always use for getting current time. Always use before analysing anything. \
-        Tool for knowing the current time and day and year, month now at the moment. \
-        Use this to know only the time at the moment. \
-        Do not provide any input schema (no parameter for this function).",
-    "input_schema": {
-        "type": "object",
-    },
-}
-
-
 functionB = {
     "name": "link_to_knowledgebase",
     "description": "A datasource that store every things about Chí Phèo story by Nam Cao. Use this to search more about the story,\
@@ -104,7 +90,6 @@ functionE = {
 
 def return_tool():
     return [
-        functionA,
         functionB,
         functionC,
         functionD,
