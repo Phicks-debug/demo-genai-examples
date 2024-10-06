@@ -1,4 +1,4 @@
-from modules.core import Tools
+from techxmodule.core import Tools
 
 import boto3, json
 import wikipedia # type: ignore

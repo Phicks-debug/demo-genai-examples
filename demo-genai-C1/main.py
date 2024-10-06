@@ -1,10 +1,10 @@
 import boto3, pytz
 
-from techxmodule.models import Claude
+from techxmodule.models.chat import Claude
 from techxmodule.core import Prompts
 from techxmodule.utils import system, location
 from toolsdata import return_tool
-from termcolor import cprint
+from termcolor import cprint    # type: ignore
 
 from datetime import datetime
 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     session = boto3.Session()
     
     # Create runtime service
-    claudeModel = Claude("3.5-sonnet", "us-east-1", 10, session)
+    claudeModel = Claude("3.5-sonnet", session, "us-east-1", 10)
     claudePrompt = Prompts(claudeModel)
     
     # Add tool for the model to use
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         userPrompt = input("\nuser: ")
         
         # Exit app conditions
-        if userPrompt == "exit()":
+        if userPrompt == "\\bye":
             break
         
         prompt = claudePrompt.build(userPrompt)
