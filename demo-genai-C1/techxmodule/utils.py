@@ -1,7 +1,9 @@
 import json
 import re
+import pytz
 
 import platform,socket,re,uuid,json,psutil,logging # type: ignore
+from datetime import datetime
 import geocoder, geopy      # type: ignore
 
 from termcolor import cprint # type: ignore
@@ -93,3 +95,7 @@ def system() -> str:
     
 def location():
     return geopy.geocoders.Nominatim(user_agent="GetLoc").reverse(geocoder.ip('me').latlng)
+
+
+def real_time():
+    return datetime.now(tz = pytz.timezone("Asia/Bangkok")).strftime('%Y-%m-%d %H:%M:%S %Z')

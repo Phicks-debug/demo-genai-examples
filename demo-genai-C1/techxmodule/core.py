@@ -1,4 +1,5 @@
 from techxmodule import utils
+from typing import List, Dict
 
 
 class Guardrail:
@@ -23,81 +24,157 @@ class Prompts:
 
         @raises ValueError: If a model is provided but lacks a `name` attribute.
         """
-        self.__model = model if model and hasattr(model, "name") else None
+        self.__model = model if model \
+            and hasattr(model, "name") else None
         if not self.__model:
             self.__prompt_type = "None"
         else:
             self.__prompt_type = model.name
 
 
-    def build(self, user_prompt: str, context_prompt: str = "", example_prompt: str = "", chain_of_thought_prompt: str = None) -> str:
-        """
-        Builds the final prompt based on the specified model type.
+    def build(self, user: str, 
+              context = "", 
+              example= "",
+              instruction: str = None) -> str:
 
-        @param user_prompt: The main user input prompt.
-        @param context_prompt: Optional context information (default is empty string).
-        @param example_prompt: Optional example prompts (default is empty string).
-        @param chain_of_thought_prompt: Optional Chain of Thought prompt (default is None).
-
-        @return: A combined prompt as a single string.
+        """Builds the final prompt 
+        based on the specified model type.
+        
+        Args:
+            user (str): 
+                The main user input prompt.
+            context (str):
+                Context information. 
+                Default is empty string.
+            example (str):
+                Example prompts for few-shot.
+                Default is empty string.
+            instruction (str):
+                Chain of Thought prompt or instruction.
+                Default is None.
+        Returns:
+            str: A combined prompt as a single string.
         """
+
         build_prompt_fn = {
             "claude": self.__build_claude_prompt,
             "llama": self.__build_llama_prompt,
-            "mistiAi": self.__build_misti_ai_prompt
-        }.get(self.__prompt_type, self.__build_default_prompt)
+        }.get(self.__prompt_type, 
+              self.__build_default_prompt)
 
-        return build_prompt_fn(user_prompt, context_prompt, example_prompt, chain_of_thought_prompt)
+        return build_prompt_fn(
+            user, 
+            context, 
+            example, 
+            instruction)
 
 
-    def __build_claude_prompt(self, user_prompt: str, context_prompt: str = "", example_prompt: str = "", chain_of_thought_prompt: str = None) -> str:
+    def __build_claude_prompt(self, 
+                              user_prompt: str, 
+                              context_prompt = "", 
+                              example_prompt = "", 
+                              instruction: str = None) -> str:
         """
-        Builds a prompt specifically for the Claude model using the utility functions from the model.
-
-        @return: Combined and sanitized prompt for Claude.
+        Builds a prompt specifically for the Claude model 
+        using the utility functions from the model.
         """
-        return self.__build_prompt_with_utils(user_prompt, context_prompt, example_prompt, chain_of_thought_prompt)
+        
+        prompt = utils.combine_string([
+            self.__model.build_context_prompt(context_prompt),
+            self.__model.build_user_prompt(user_prompt),
+            self.__model.build_cot_prompt(instruction),
+            self.__model.build_example_prompt(example_prompt)
+        ])
+        
+        return utils.sanitize_input(prompt)
 
     
-    def __build_llama_prompt(self, user_prompt: str, context_prompt: str = "", example_prompt: str = "", chain_of_thought_prompt: str = None) -> str:
-        pass
-    
-    
-    def __build_misti_ai_prompt(self, user_prompt: str, context_prompt: str = "", example_prompt: str = "", chain_of_thought_prompt: str = None) -> str:
-        pass
+    def __build_llama_prompt(self, 
+                             user_prompt: str, 
+                             context_prompt = "", 
+                             example_prompt = "", 
+                             instruction: str = None,
+                             tools: List[Dict] = None) -> str:
+        """
+        Builds a prompt specifically for the Llama model 
+        using the utility functions from the model.
+        """
+        
+        def format(prompt, text, footer=""):
+            if prompt:
+                return utils.combine_string([
+                text, f"{prompt}", footer
+                ])
+            else: return ""
+            
+        context = format(context_prompt,
+                         """
+                            Here is context:\n
+                            --------------------\n
+                         """, 
+                         """
+                            --------------------\n
+                            End of the context.\n
+                         """)
+        example = format(example_prompt,
+                         "Here is some examples:\n")
+        tool_list = format(tools,
+                      """
+                        You are an expert in composing functions. You are given a set of possible functions.
+                        Based on the question, you will need to make one or more function/tool calls to achieve the purpose.
+                        If none of the function can be used, point it out. 
+                        If the given question lacks the parameters required by the function, also point it out. 
+                        You should only return the function call in tools call sections.
+
+                        If you decide to invoke any of the function(s), you MUST put it in the format of [func_name1(params_name1=params_value1, params_name2=params_value2...), func_name2(params)]
+                        You SHOULD NOT include any other text in the response.
+
+                        Here is a list of functions in JSON format that you can invoke.
+                      """)
+        
+        if self.__model.memory.max_chat_message > 0:
+            history = """
+            Here is the chat histories between human and assistant, inside <histories></histories> XML tags.
+            
+            <histories>
+            {}
+            </histories>
+            """
+        else: history = ""
+        
+        # Format prompt
+        return f"""
+            <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+            
+            {instruction}
+            {tool_list}
+            {context}
+            {example}
+            {history}
+            
+            <|eot_id|><|start_header_id|>user<|end_header_id|>
+            
+            {user_prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+        """
     
 
-    def __build_default_prompt(self, user_prompt: str, context_prompt: str = "", example_prompt: str = "", chain_of_thought_prompt: str = None) -> str:
+    def __build_default_prompt(self, 
+                               user_prompt: str, 
+                               context_prompt: str = "", 
+                               example_prompt: str = "", 
+                               instruction: str = None) -> str:
         """
         Builds a default prompt with no specific model optimizations.
 
         @return: Combined and sanitized default prompt.
         """
-        return self.__build_prompt_without_utils(user_prompt, context_prompt, example_prompt, chain_of_thought_prompt)
-
-
-    def __build_prompt_with_utils(self, user_prompt: str, context_prompt: str, example_prompt: str, chain_of_thought_prompt: str) -> str:
-        """
-        Helper method to build prompts using model utility methods for models like Claude.
-
-        @return: A combined and sanitized prompt string.
-        """
-        prompt = utils.combine_string([
-            self.__model.build_context_prompt(context_prompt),
-            self.__model.build_user_prompt(user_prompt),
-            self.__model.build_cot_prompt(chain_of_thought_prompt),
-            self.__model.build_example_prompt(example_prompt)
-        ])
-        return utils.sanitize_input(prompt)
-
-
-    def __build_prompt_without_utils(self, user_prompt: str, context_prompt: str, example_prompt: str, chain_of_thought_prompt: str) -> str:
-        """
-        Helper method to build prompts without using any model-specific utilities.
-
-        @return: A combined and sanitized prompt string.
-        """
-        prompt = utils.combine_string([context_prompt, user_prompt, chain_of_thought_prompt, example_prompt])
+        prompt = utils.combine_string(
+            [
+                context_prompt, 
+                user_prompt, 
+                instruction, 
+                example_prompt
+            ])
         return utils.sanitize_input(prompt)
 
 

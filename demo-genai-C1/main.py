@@ -63,8 +63,7 @@ if __name__ == "__main__":
         # Sub-loop for tool use
         while True:
             
-            result = claudeModel.invoke(system_prompt=system_prompt, streaming=True)
-            response = claudeModel.response(result)
+            response = claudeModel.invoke(system_prompt=system_prompt, streaming=True)
 
             if response["stop_reason"] == "end_turn":
                 

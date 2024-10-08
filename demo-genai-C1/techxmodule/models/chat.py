@@ -6,7 +6,7 @@ from typing import List, Optional, Any, Dict, Callable
 from functools import wraps
 from techxmodule import utils
 from techxmodule.models.__core_skeleton__ import LLM
-from techxmodule.messages import ChatMessage, Image
+from techxmodule.messages import Image
 
 
 class ChatLLM(LLM):
@@ -20,7 +20,10 @@ class ChatLLM(LLM):
     TOOL_RESULT = "tool_result"
 
     
-    def __init__(self, name: str, max_chat_memmory: int, session: Any, region_name: str):
+    def __init__(self, name: str, 
+                 max_chat_memory: int, 
+                 session: Any, 
+                 region_name: str):
         """
         Initialize Chat model Instance
         
@@ -30,8 +33,10 @@ class ChatLLM(LLM):
         :param session: Session object for API calls
         :param region_name: AWS region name
         """
-        super().__init__(name, session, region_name)
-        self.memory = ChatMessage(max_chat_message=max_chat_memmory + self.MEMORY_BUFFER)
+        super().__init__(name, 
+                         session, 
+                         region_name, 
+                         max_chat_memory+self.MEMORY_BUFFER)
     
     
     def manage_memory(func):
@@ -64,7 +69,9 @@ class ChatLLM(LLM):
     
     
     @manage_memory
-    def add_to_memory(self, role: str, text: str, images: Optional[List[Image]] = None) -> List[Dict]:
+    def add_to_memory(self, role: str, 
+                      text: str, 
+                      images: Optional[List[Image]] = None) -> List[Dict]:
         """
         Add a new message to the memory.
 
@@ -139,52 +146,92 @@ class Claude(ChatLLM):
     Anthropic Claude model class that interacts with AWS Bedrock runtime service.
     """
 
-    def __init__(self, model_name: str, session, region: str, max_chat_memory: int = 0) -> None:
-        """
-        Initialize Claude model with specified version and session.
+    def __init__(self, model_name: str, 
+                 session: Any, 
+                 region: str, 
+                 max_chat_memory = 0) -> None:
+        """Initialize Claude model with specified version and session.
 
-        @param model_name: Name of the Claude model to use. Valid options are "3-haiku", "3-sonnet", "3-opus", or "3.5-sonnet".
-        @param session: An instance of the boto3 session object for creating a Bedrock client.
-        @param region: AWS region name where the service is run.
-        @param max_chat_memory: Maximum number of chats (plus buffer) the model can remember.
-                                2 means 1 for user and 1 for assistant. Default is 0.
+        Args:
+            model_name (str): 
+                Name of the Claude model to use.
+                Valid options are "3-haiku", "3-sonnet", "3-opus", or "3.5-sonnet".
+            session (Any): 
+                An instance of the boto3 session object for creating a Bedrock client.
+            region (str): 
+                AWS region name where the service is run.
+            max_chat_memory (int, optional): 
+                Maximum number of chats (plus buffer) the model can remember. 
+                Defaults to 0.
         """
-        super().__init__("claude", max_chat_memory, session, region)
+
+        super().__init__("claude", 
+                         max_chat_memory, 
+                         session, 
+                         region)
         self.modelId = self.__set_model_id(model_name)
 
 
-    def invoke(self, messages: str = None, system_prompt: str = "", max_token: int = 4096,
-               temperature: float = 0.15, top_p: float = 0.8, top_k: int = 50, 
-               streaming: bool = False):
-        """
-        Invoke Claude model
-        
-        @param messages: Message prompt to the model (leave 'None' if use chat history).
-        @param system_prompt: Claude's role or personality prompt, system prompt.
-        @param max_token: Maximum number of output generate token
-        @param temperature: Sampling temperature for output variability.
-        @param top_p: Nucleus sampling parameter for output diversity.
-        @param top_k: Number of top tokens to consider for sampling.
-        @param streaming: Whether to stream the response (default is False).
-        @return: JSON response from the model.
-        """
-        return self._invoke_chat_model(self.modelId, 
-            self.__build_claude_payload, 
-            payload_params=[messages, system_prompt, max_token, temperature, top_p, top_k], 
-            streaming=streaming)
+    def invoke(self, messages: str = None, 
+               system_prompt = "", 
+               max_token = 4096,
+               temperature = 0.15, 
+               top_p = 0.8, 
+               top_k = 50, 
+               streaming = False,
+               verbose = False) -> Dict[str, Any]:
+        """Invoke the model
 
-    
-    def response(self, invoke_result: Any, debug=False):
+        Args:
+            messages (str, optional): 
+                Message prompt to the model
+                (leave 'None' if use chat history).
+                Defaults to None.
+            system_prompt (str, optional): 
+                Claude's role or personality prompt, system prompt.
+                Defaults to "".
+            max_token (int, optional): 
+                Maximum number of output generate token.
+                Defaults to 4096.
+            temperature (float, optional):
+                Sampling temperature for output variability.
+                Defaults to 0.15.
+            top_p (float, optional): 
+                Nucleus sampling parameter for output diversity.
+                Defaults to 0.8.
+            top_k (int, optional): 
+                Number of top tokens to consider for sampling.
+                Defaults to 50.
+            streaming (bool, optional): 
+                Whether to stream the response.
+                Defaults to False.
+            verbose (bool, optional): 
+                Whether to show log, tracking.
+                Defaults to False.
+
+        Returns:
+            Dict: Json that contain full response output.
         """
-        Parse response from Claude model
-        """
+
+        # Invoke model through bedrock runtime service
+        invoke_result = self._invoke_chat_model(self.modelId, 
+            self.__build_claude_payload, 
+            payload_params=[messages, 
+                            system_prompt, 
+                            max_token, 
+                            temperature, 
+                            top_p, 
+                            top_k], 
+            streaming=streaming)
+        
+        # Return the parse response from the invoke result
         return self._parse_response(
             invoke_result, 
             [
                 self.__process_streaming_claude_response, 
                 self.__process_non_streaming_claude_response
             ], 
-            debug)
+            debug=verbose)
     
 
     def tool_use(self, tools_list: list) -> list:
@@ -228,8 +275,9 @@ class Claude(ChatLLM):
         return ""
 
 
-    def __build_context_kb_prompt(
-        self, retrieved_data: dict, min_relevance: float = 0.5, debug: bool = False) -> str:
+    def __build_context_kb_prompt(self, retrieved_data: dict, 
+                                  min_relevance: float = 0.5, 
+                                  debug: bool = False) -> str:
         """
         Build XML context prompt from retrieved knowledge base data.
 
@@ -255,9 +303,12 @@ class Claude(ChatLLM):
         return ET.tostring(documents, encoding="unicode", method="xml")
 
 
-    def __build_claude_payload(
-        self, messages: list, system_prompt: str, max_token: float, 
-        temperature: float, top_p: float, top_k: int) -> str:
+    def __build_claude_payload(self, messages: list, 
+                               system_prompt: str, 
+                               max_token: float, 
+                               temperature: float, 
+                               top_p: float, 
+                               top_k: int) -> str:
         """
         Build JSON payload for API request.
 
@@ -282,7 +333,8 @@ class Claude(ChatLLM):
 
 
     def __process_streaming_claude_response(
-        self, model_response: Any, debug: bool = False) -> Dict[str, Any]:
+            self, model_response: Any, 
+            debug: bool = False) -> Dict[str, Any]:
         """
         Stream and print model output in real-time.
 
@@ -352,7 +404,8 @@ class Claude(ChatLLM):
 
 
     def __process_non_streaming_claude_response(
-            self, model_response: Any, debug: bool = False) -> Dict[str, Any]:
+            self, model_response: Any, 
+            debug: bool = False) -> Dict[str, Any]:
         """
         Handle and process non-streaming model output.
 

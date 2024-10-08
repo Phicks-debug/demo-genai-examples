@@ -1,5 +1,4 @@
-import tools, json
-import xml.etree.ElementTree as ET
+import json
 
 from termcolor import cprint, colored    # type: ignore
 from typing import List, Optional, Any, Dict, Callable
@@ -12,33 +11,36 @@ class InstructLLM(LLM):
     """
     
     def __init__(self, name: str, 
-                 max_chat_memmory: int, 
-                 session: Any, region_name: str, chat_mode: bool=False):
-        """
-        Initialize Instruct model Instance
-        
-        :param name: Name of the LLM
-        :param session: Session object for API calls
-        :param region_name: AWS region name
-        """
-        super().__init__(name, session, region_name)
-        self.memory = max_chat_memmory
-        self.chat = chat_mode
+                 max_chat_memory: int, 
+                 session: Any, 
+                 region_name: str):
+        super().__init__(name, 
+                         session, 
+                         region_name, 
+                         max_chat_memory)
         
     
     def _invoke_instruct_model(self, modelId: str,
                         build_payload_func, 
-                        payload_params: list, streaming: bool = False) -> Dict:
-        """
-        A wrapper to invoke the instruct model, 
+                        payload_params: list, 
+                        streaming: bool = False) -> Dict:
+        """A wrapper to invoke the instruct model, 
         allowing for custom payload construction with flexible arguments.
+        
+        Args:
+            modelId (str): 
+                The ID of the model to be invoked.
+            build_payload_func (_type_): 
+                A function that builds the payload.
+            payload_params (list): 
+                A list of parameters to be passed to the build_payload_func.
+            streaming (bool, optional): 
+                Whether to stream the response. Defaults to False.
 
-        @param modelId: The ID of the model to be invoked.
-        @param build_payload_func: A function that builds the payload.
-        @param payload_params: A list of parameters to be passed to the build_payload_func.
-        @param streaming: Whether to stream the response (default is False).
-        @return: JSON response from the model.
+        Returns:
+            Dict: JSON response from the model.
         """
+        
         payload = build_payload_func(*payload_params)
         return self._invoke_with_payload(modelId, payload, streaming)   
     
@@ -48,50 +50,72 @@ class LLama(InstructLLM):
     LLama Meta model class that interacts with AWS Bedrock runtime service.
     """
     
-    def __init__(self, model_name: str, session: Any, region_name: str, max_chat_memmory: int = 0) -> None:
-        """
-        Initialize Llama model with specified version and session.
+    def __init__(self, model_name: str, 
+                 session: Any, 
+                 region_name: str, 
+                 max_chat_memory: int = 0) -> None:
+        """Initialize Llama model with specified version and session.
 
-        @param model_name: Name of the Claude model to use. Valid options are "3.2-1B", "3.2-3B", "3.2-11B", or "3.2-90B".
-        @param session: An instance of the boto3 session object for creating a Bedrock client.
-        @param region_name: AWS region name where the service is run.
-        @param max_chat_memory: Maximum number of chats the model can remember.
-                                2 means 1 for user and 1 for assistant. Default is 0.
+        Args:
+            model_name (str): 
+                Name of the LLama model to use. 
+                Valid options are "3.2-1B", "3.2-3B", "3.2-11B", or "3.2-90B".
+            session (Any): 
+                An instance of the boto3 session object.
+            region_name (str): 
+                AWS region name where the service is run.
+            max_chat_memory (int, optional): 
+                Maximum number of chats the model can remember. Defaults to 0.
         """
-        super().__init__("llama", max_chat_memmory, session, region_name)
+        
+        super().__init__("llama", max_chat_memory, session, region_name)
         self.modelId = self.__set_model_id(model_name)
 
 
-    def invoke(self, messages: str = None, max_token: int = 1024, temperature: float = 0.15, top_p: float = 0.8, 
-               streaming: bool = False) -> Dict:
+    def invoke(self, messages: str, 
+               max_token: int = 1024, 
+               temperature: float = 0.15, 
+               top_p: float = 0.8, 
+               streaming: bool = False,
+               verbose: bool = False) -> Dict:
+        """Invoke the model
+
+        Args:
+            messages (str): 
+                Prompt to ask the model.
+            max_token (int, optional): 
+                Max number of output token. Defaults to 1024.
+            temperature (float, optional): 
+                Defaults to 0.15.
+            top_p (float, optional): 
+                Defaults to 0.8.
+            streaming (bool, optional): 
+                Whether to stream the response. Defaults to False.
+            verbose (bool, optional): 
+                Show the metatdata, log. Defaults to False.
+
+        Returns:
+            Dict: the full response from the model.
         """
-        Invoke Llama model
+        invoke_result = self._invoke_instruct_model(
+            self.modelId, 
+            self.__build_llama_payload, 
+            payload_params= [messages, max_token, temperature, top_p], 
+            streaming=streaming)
         
-        @param messages: A message prompt to the model (leave 'None' if use chat history).
-        @param max_token: Maximum number of output generate tokens
-        @param temperature: Sampling temperature for output variability.
-        @param top_p: Nucleus sampling parameter for output diversity.
-        @param streaming: Whether to stream the response (default is False).
-        @return: JSON Response from the model.
-        """
-        return self._invoke_instruct_model(self.modelId, self.__build_llama_payload, 
-            payload_params= [messages, max_token, temperature, top_p], streaming=streaming)
-    
-    
-    def response(self, invoke_result: Any, debug=False):
-        """
-        Parse response from Claude model
-        """
-        return self._parse_response(
-            invoke_result, 
+        return self._parse_response(invoke_result, 
             [
                 self.__process_streaming_llama_response, 
                 self.__process_non_streaming_llama_response
             ], 
-            debug)
-    
-    
-    def __build_llama_payload(self, messages: str, max_token: int, temperature: float, top_p: float):
+            debug=verbose)
+
+
+    def __build_llama_payload(self, 
+                              messages: str, 
+                              max_token: int, 
+                              temperature: float, 
+                              top_p: float):
         """
         Build JSON payload for API request.
         """
@@ -104,7 +128,7 @@ class LLama(InstructLLM):
     
 
     def __process_streaming_llama_response(
-        self, model_response: Any, debug: bool = False) -> Dict[str, Any]:
+            self, model_response: Any, debug: bool = False) -> Dict[str, Any]:
         """
         Stream and print model output in real-time.
 
