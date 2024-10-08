@@ -46,6 +46,8 @@ if __name__ == "__main__":
     llama_prompt = Prompts(llama)
     claude_prompt = Prompts(claude)
     
+    prompt = f"""<s>[INST] <<SYS>>\n{instruction}\n<</SYS>\n\n"""
+    
     while True:
         user_input = input("\n\nEnter your prompt (or '/bye' to exit): ")
         if user_input.lower() == END_CODE:
@@ -54,24 +56,32 @@ if __name__ == "__main__":
         
         llama_formated_prompt = llama_prompt.build(user=user_input, 
                                     instruction=instruction)
-        claude_formated_prompt = claude_prompt.build(user=user_input)
+        # claude_formated_prompt = claude_prompt.build(user=user_input)
         
         
-        claude.add_to_memory(USER, claude_formated_prompt)
+        # claude.add_to_memory(USER, claude_formated_prompt)
+        
+        format_prompt = f"""{user_input} [/INST]"""
+        
+        prompt += format_prompt
+        
 
         print("\nLLama answer: ")
         llama_response = llama.invoke(
-            messages=llama_formated_prompt, 
+            messages=prompt, 
             max_token=512,
             streaming=True)     
         
-        print("\n\nClaude answer: ")
-        claude_response = claude.invoke(
-            system_prompt=instruction, 
-            streaming=True
-        )
+        # print("\n\nClaude answer: ")
+        # claude_response = claude.invoke(
+        #     system_prompt=instruction, 
+        #     streaming=True
+        # )
         
-        claude.add_to_memory(BOT, claude_response["response"])
+        # claude.add_to_memory(BOT, claude_response["response"])
         
+        format_response = f"""{llama_response} </s><s> [INST]\n"""
+        
+        prompt += format_response
         
         
